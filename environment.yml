@@ -1,0 +1,16 @@
+# GenAI disclosure: Claude (Anthropic) generated this file as part of the
+# initial repo skeleton.
+#
+# Starts from the class configuration (conda-forge, Python 3.12, pip section).
+# Training dependencies are not listed yet. Add them here when the training
+# code lands, so a fresh clone can still build the environment in one step.
+name: nlp-final-project
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - pytest
+      - ruff
+      - -e .
