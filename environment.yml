@@ -2,8 +2,10 @@
 # initial repo skeleton.
 #
 # Starts from the class configuration (conda-forge, Python 3.12, pip section).
-# Training dependencies are not listed yet. Add them here when the training
-# code lands, so a fresh clone can still build the environment in one step.
+# Runtime dependencies (torch, transformers, peft and the rest) are listed in
+# pyproject.toml and installed by the "-e ." line below. On a GPU machine,
+# install the CUDA build of torch that matches its driver first if pip picks
+# the wrong one.
 name: nlp-final-project
 channels:
   - conda-forge

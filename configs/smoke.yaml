@@ -1,0 +1,36 @@
+# GenAI disclosure: Claude (Anthropic) generated this file.
+# A few-minute CPU run that checks the whole pipeline end to end on a small
+# model and the built-in toy problems. Its numbers mean nothing.
+model:
+  name: HuggingFaceTB/SmolLM2-360M-Instruct
+  enable_thinking: false
+  lora_r: 4
+  lora_alpha: 8
+data:
+  train_dataset: toy
+  heldout_size: 8
+rollout:
+  rollouts_per_question: 4
+  max_new_tokens: 120
+  temperature: 0.7
+  batch_size: 4
+loss:
+  train_max_tokens: 120
+  gram_weight: 1.0
+  gram_tokens: 32
+  kl_weight: 0.1
+train:
+  steps: 3
+  learning_rate: 1.0e-3
+  questions_per_step: 4
+  save_every: 1
+  warmup_steps: 1
+  output_dir: runs/smoke
+eval:
+  benchmarks: [heldout]
+  samples_per_problem: 4
+  max_new_tokens: 120
+  batch_size: 4
+  max_problems: 4
+  probe_size: 4
+  probe_file: runs/smoke/probes.json
