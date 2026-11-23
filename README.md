@@ -84,6 +84,13 @@ config = load_config("configs/smoke.yaml", ["train.steps=1"])
 run_folder = train(config)
 ```
 
+### Running on Google Colab
+
+`notebooks/colab_run.ipynb` installs the code on a Colab GPU, saves runs to
+Google Drive, runs a short timing test, and then runs the experiments. A run
+cut off by a dropped session continues with `--resume`, and evaluation skips
+checkpoints that already have a result file.
+
 ## How the pieces connect
 
 | Module | Job |

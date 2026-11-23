@@ -1,0 +1,27 @@
+# GenAI disclosure: Claude (Anthropic) generated this file.
+# A one-step timing test for a Colab L4 (22.5 GB). It measures sampling speed,
+# peak GPU memory, and how many responses hit the token limit before they
+# finish. Both regularizers are on so the step includes all three forward
+# passes. Its accuracy numbers are from 8 questions and mean little.
+model:
+  name: Qwen/Qwen3-1.7B
+  enable_thinking: true
+data:
+  train_dataset: dapo-math-17k
+  heldout_size: 200
+rollout:
+  rollouts_per_question: 4
+  max_new_tokens: 4096
+  batch_size: 4
+loss:
+  divergence: kl
+  top_k_logits: 100
+  train_max_tokens: 2048
+  gram_weight: 1.0
+  kl_weight: 0.1
+train:
+  steps: 1
+  questions_per_step: 8
+  save_every: 1
+  warmup_steps: 1
+  output_dir: runs/colab_timing

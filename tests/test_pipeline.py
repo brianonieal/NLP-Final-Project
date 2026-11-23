@@ -13,7 +13,7 @@ from gram_sdpo.modeling import base_model, load_adapter_weights, resolve_dtype
 from gram_sdpo.report import collect_rows, to_markdown, write_report
 from gram_sdpo.rollout import Rollout, sample_responses, trim_at_end_token
 from gram_sdpo.sdpo import choose_solution, example_losses, forward_response, gram_distance
-from gram_sdpo.train import train
+from gram_sdpo.train import latest_checkpoint, train
 
 
 def always_correct(response: str, truth: str) -> bool:
@@ -165,6 +165,44 @@ def test_training_updates_adapters_and_writes_run_files(tiny_model, tiny_tokeniz
     assert (run_dir / "config.yaml").exists()
     assert [p.name for p in checkpoint_folders(run_dir, ["all"])] == ["step-00001", "step-00002"]
     assert checkpoint_folders(run_dir, ["base", "final"])[1].name == "step-00002"
+
+
+def test_training_resumes_from_the_newest_checkpoint(tiny_model, tiny_tokenizer, tiny_config):
+    """A run cut off after two steps continues at step three with its weights restored."""
+    problems = toy_problems(8)
+    run_dir = train(tiny_config, always_correct, tiny_model, tiny_tokenizer, problems)
+    after_two = {n: p.detach().clone() for n, p in tiny_model.named_parameters() if "lora_" in n}
+    assert latest_checkpoint(run_dir).name == "step-00002"
+
+    perturb_adapters(tiny_model)
+    tiny_config.train.steps = 3
+    seen: dict[str, bool] = {}
+
+    def record_restored_weights(response: str, truth: str) -> bool:
+        """Note, at the first scoring call, whether the weights were restored."""
+        if not seen:
+            seen["restored"] = all(
+                torch.equal(p, after_two[n])
+                for n, p in tiny_model.named_parameters()
+                if "lora_" in n
+            )
+        return True
+
+    train(tiny_config, record_restored_weights, tiny_model, tiny_tokenizer, problems, resume=True)
+    assert seen["restored"]
+    steps = [json.loads(x)["step"] for x in (run_dir / "train_log.jsonl").read_text().splitlines()]
+    assert steps == [1, 2, 3]
+    assert latest_checkpoint(run_dir).name == "step-00003"
+
+
+def test_resume_with_no_checkpoint_starts_from_step_one(tiny_model, tiny_tokenizer, tiny_config):
+    """Asking to resume an empty run folder is the same as a fresh start."""
+    run_dir = train(
+        tiny_config, always_correct, tiny_model, tiny_tokenizer, toy_problems(8), resume=True
+    )
+    first = json.loads((run_dir / "train_log.jsonl").read_text().splitlines()[0])
+    assert first["step"] == 1
+    assert first["sampled_tokens_per_second"] > 0
 
 
 def test_training_skips_questions_with_no_correct_rollout(tiny_model, tiny_tokenizer, tiny_config):

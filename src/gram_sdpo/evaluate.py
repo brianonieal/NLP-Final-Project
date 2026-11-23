@@ -239,6 +239,11 @@ def main(argv: list[str] | None = None) -> None:
         help="'base', 'all', 'final', or step folder names. 'base' must come first.",
     )
     parser.add_argument("--override", action="append", default=[], metavar="SECTION.KEY=VALUE")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Evaluate again even when a checkpoint already has a result file.",
+    )
     args = parser.parse_args(argv)
     config = load_config(args.config, args.override)
     run_dir = Path(config.train.output_dir)
@@ -255,6 +260,10 @@ def main(argv: list[str] | None = None) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     for folder in folders:
         name = "base" if folder is None else folder.name
+        out_file = out_dir / f"{name}.json"
+        if out_file.exists() and not args.force:
+            logger.info("Skipping %s: %s already exists", name, out_file)
+            continue
         if folder is not None:
             load_adapter_weights(model, folder)
         logger.info("Evaluating %s", name)
@@ -268,8 +277,8 @@ def main(argv: list[str] | None = None) -> None:
             kl_weight=config.loss.kl_weight,
             seed=config.train.seed,
         )
-        (out_dir / f"{name}.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-        logger.info("Wrote %s", out_dir / f"{name}.json")
+        out_file.write_text(json.dumps(results, indent=2), encoding="utf-8")
+        logger.info("Wrote %s", out_file)
 
 
 if __name__ == "__main__":

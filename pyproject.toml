@@ -10,7 +10,7 @@ name = "gram-sdpo"
 version = "0.1.0"
 description = "Gram loss regularization for self-distillation of a reasoning LLM."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [
     { name = "Brian W. Onieal" },
     { name = "Morgan Zinn" },
