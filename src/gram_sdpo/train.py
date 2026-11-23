@@ -273,10 +273,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", required=True, help="Path to a YAML config file.")
     parser.add_argument(
         "--override",
-        action="append",
+        nargs="+",
+        action="extend",
         default=[],
         metavar="SECTION.KEY=VALUE",
-        help="Change one setting. Repeat for more.",
+        help="Change settings. Takes one or more values and may be repeated.",
     )
     parser.add_argument(
         "--resume",

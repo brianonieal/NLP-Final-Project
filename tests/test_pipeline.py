@@ -7,6 +7,7 @@ import random
 import pytest
 import torch
 
+from gram_sdpo import train as train_module
 from gram_sdpo.data import toy_problems
 from gram_sdpo.evaluate import checkpoint_folders, evaluate_checkpoint, load_or_build_probes
 from gram_sdpo.modeling import base_model, load_adapter_weights, resolve_dtype
@@ -252,3 +253,32 @@ def test_report_handles_a_folder_with_no_results(tmp_path):
     """An empty runs folder gives a note instead of an error."""
     assert collect_rows(tmp_path) == []
     assert "No evaluation files" in to_markdown([])
+
+
+def test_train_command_line_accepts_several_overrides(monkeypatch, tmp_path):
+    """One --override flag can carry several settings, and --resume is passed on."""
+    config_file = tmp_path / "c.yaml"
+    config_file.write_text("{}", encoding="utf-8")
+    captured = {}
+
+    def fake_train(config, resume=False):
+        """Record what the command line asked for instead of training."""
+        captured.update(config=config, resume=resume)
+
+    monkeypatch.setattr(train_module, "train", fake_train)
+    train_module.main(
+        [
+            "--config",
+            str(config_file),
+            "--resume",
+            "--override",
+            "loss.gram_weight=0.1",
+            f"train.output_dir={tmp_path / 'run'}",
+            "--override",
+            "train.steps=3",
+        ]
+    )
+    assert captured["resume"] is True
+    assert captured["config"].loss.gram_weight == 0.1
+    assert captured["config"].train.steps == 3
+    assert captured["config"].train.output_dir == str(tmp_path / "run")

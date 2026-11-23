@@ -238,7 +238,14 @@ def main(argv: list[str] | None = None) -> None:
         default=["all"],
         help="'base', 'all', 'final', or step folder names. 'base' must come first.",
     )
-    parser.add_argument("--override", action="append", default=[], metavar="SECTION.KEY=VALUE")
+    parser.add_argument(
+        "--override",
+        nargs="+",
+        action="extend",
+        default=[],
+        metavar="SECTION.KEY=VALUE",
+        help="Change settings. Takes one or more values and may be repeated.",
+    )
     parser.add_argument(
         "--force",
         action="store_true",
