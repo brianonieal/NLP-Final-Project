@@ -80,7 +80,8 @@ def sample_responses(
         temperature: Sampling temperature. Zero or less means greedy decoding.
         top_p: Nucleus sampling threshold.
         top_k: Top-k sampling cutoff. Zero turns it off.
-        batch_size: Prompts per generation call.
+        batch_size: Prompts per generation call. If the GPU runs out of
+            memory, the batch is halved and the same prompts are tried again.
 
     Returns:
         One list of rollouts per prompt, in the order given.
@@ -99,18 +100,32 @@ def sample_responses(
         }
 
     results: list[list[Rollout]] = []
-    for start in range(0, len(prompts), batch_size):
+    start = 0
+    while start < len(prompts):
         batch = prompts[start : start + batch_size]
         encoded = tokenizer(batch, return_tensors="pt", padding=True, add_special_tokens=False)
         encoded = {key: value.to(device) for key, value in encoded.items()}
-        output = model.generate(
-            **encoded,
-            max_new_tokens=max_new_tokens,
-            num_return_sequences=n_per_prompt,
-            pad_token_id=tokenizer.pad_token_id,
-            **sampling,
-        )
+        try:
+            output = model.generate(
+                **encoded,
+                max_new_tokens=max_new_tokens,
+                num_return_sequences=n_per_prompt,
+                pad_token_id=tokenizer.pad_token_id,
+                **sampling,
+            )
+        except torch.OutOfMemoryError:
+            if batch_size == 1:
+                raise
+            batch_size = max(1, batch_size // 2)
+            del encoded
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.warning(
+                "Out of GPU memory while sampling. Retrying with batch size %d", batch_size
+            )
+            continue
         new_tokens = output[:, encoded["input_ids"].shape[1] :].tolist()
+        del output
         for prompt_index in range(len(batch)):
             group = []
             for row in new_tokens[prompt_index * n_per_prompt : (prompt_index + 1) * n_per_prompt]:
@@ -118,6 +133,7 @@ def sample_responses(
                 text = tokenizer.decode(token_ids, skip_special_tokens=True)
                 group.append(Rollout(text=text, token_ids=token_ids, finished=finished))
             results.append(group)
+        start += len(batch)
         logger.debug("Sampled %d of %d prompts", len(results), len(prompts))
     if was_training:
         model.train()
