@@ -10,13 +10,27 @@ name = "gram-sdpo"
 version = "0.1.0"
 description = "Gram loss regularization for self-distillation of a reasoning LLM."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 authors = [
     { name = "Brian W. Onieal" },
     { name = "Morgan Zinn" },
     { name = "Rajiv Khandpur" },
 ]
-dependencies = []
+dependencies = [
+    "torch",
+    "transformers>=4.51",
+    "peft",
+    "huggingface_hub",
+    "pandas",
+    "pyarrow",
+    "pyyaml",
+    "math-verify",
+]
+
+[project.scripts]
+gram-sdpo-train = "gram_sdpo.train:main"
+gram-sdpo-eval = "gram_sdpo.evaluate:main"
+gram-sdpo-report = "gram_sdpo.report:main"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]

@@ -1,0 +1,41 @@
+# GenAI disclosure: Claude (Anthropic) generated this file.
+# Experiment 1 and the SDPO row of Experiment 2: SDPO with no regularizer.
+#
+# TEAM DECISIONS, NOT YET MADE: the values marked TEAM below are placeholders
+# sized for one rented GPU. They are smaller than Kim et al. (2026) used
+# (256 questions per step, 8 rollouts, responses up to 20480 tokens).
+model:
+  name: Qwen/Qwen3-1.7B
+  enable_thinking: true
+data:
+  train_dataset: dapo-math-17k
+  heldout_size: 200
+rollout:
+  rollouts_per_question: 4      # TEAM
+  max_new_tokens: 4096          # TEAM
+  batch_size: 16
+loss:
+  divergence: kl                # the proposal's formula. Kim et al. used jsd.
+  top_k_logits: 100
+  train_max_tokens: 2048        # TEAM
+  solution_includes_thinking: true
+  gram_layers: [-1]
+  gram_tokens: 256
+  gram_target: base
+  gram_weight: 0.0
+  kl_weight: 0.0
+train:
+  steps: 100                    # TEAM
+  questions_per_step: 16        # TEAM
+  learning_rate: 1.0e-4         # TEAM. Kim et al. used 1e-5 with full fine-tuning.
+  save_every: 20
+  output_dir: runs/sdpo
+  seed: 0
+eval:
+  benchmarks: [heldout, aime24, amc23]
+  samples_per_problem: 16
+  max_new_tokens: 4096          # TEAM
+  batch_size: 16
+  max_problems: 100             # caps the held-out set. AIME24 has 30, AMC23 has 40.
+  probe_size: 32
+  probe_file: runs/probes.json
