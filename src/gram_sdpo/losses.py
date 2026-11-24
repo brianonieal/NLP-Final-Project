@@ -29,10 +29,13 @@ def _top_k_log_probs(
     Returns:
         Two tensors of shape ``(tokens, top_k + 1)`` holding log-probabilities.
     """
-    student = F.log_softmax(student_logits, dim=-1)
-    other = F.log_softmax(other_logits, dim=-1)
-    student_top, index = student.topk(top_k, dim=-1)
-    other_top = other.gather(-1, index)
+    # Work from the raw logits: subtracting the log-sum-exp of each row gives
+    # the same log-probabilities as log_softmax without building a second
+    # full (tokens x vocab) tensor. With a 150k-token vocabulary that copy is
+    # over 1 GB per call.
+    student_top_logits, index = student_logits.topk(top_k, dim=-1)
+    student_top = student_top_logits - torch.logsumexp(student_logits, dim=-1, keepdim=True)
+    other_top = other_logits.gather(-1, index) - torch.logsumexp(other_logits, dim=-1, keepdim=True)
 
     def with_tail(top: torch.Tensor) -> torch.Tensor:
         """Append the log-probability of all tokens outside the top K."""

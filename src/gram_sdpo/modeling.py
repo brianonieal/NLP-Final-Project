@@ -149,3 +149,14 @@ def base_model(model: Any) -> Iterator[Any]:
             yield model
     finally:
         model.train(was_training)
+
+
+def release_gpu_cache() -> None:
+    """Hand cached GPU memory back so the next large allocation can use it.
+
+    Sampling leaves large cached blocks behind. Without this call the training
+    passes that follow can hit out-of-memory warnings on a 24 GB card even
+    though the memory is no longer in use. Does nothing on the CPU.
+    """
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()

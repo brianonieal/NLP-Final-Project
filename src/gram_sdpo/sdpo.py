@@ -144,23 +144,35 @@ def example_losses(
     anchor_on_teacher = use_gram and loss_config.gram_target == "teacher"
     need_base_pass = use_kl or (use_gram and not anchor_on_teacher)
 
+    # Each no-gradient pass is reduced to its loss term and released before the
+    # next one runs, so only one full set of teacher or base logits is ever
+    # held next to the student's.
     student_logits, student_hidden = forward_response(model, student_prompt, response, layers)
     with base_model(model):
         teacher_logits, teacher_hidden = forward_response(
             model, teacher_prompt, response, layers if anchor_on_teacher else None
         )
-        base_logits, base_hidden = None, []
-        if need_base_pass:
-            base_logits, base_hidden = forward_response(
-                model, student_prompt, response, layers if not anchor_on_teacher else None
-            )
-
     losses = {
         "sdpo": token_divergence(
             student_logits, teacher_logits, loss_config.divergence, loss_config.top_k_logits
         )
     }
+    del teacher_logits
     total = losses["sdpo"]
+
+    base_hidden: list[torch.Tensor] = []
+    if need_base_pass:
+        with base_model(model):
+            base_logits, base_hidden = forward_response(
+                model, student_prompt, response, layers if not anchor_on_teacher else None
+            )
+        if use_kl:
+            losses["kl"] = token_divergence(
+                student_logits, base_logits, "kl", loss_config.top_k_logits
+            )
+            total = total + loss_config.kl_weight * losses["kl"]
+        del base_logits
+
     if use_gram:
         anchor_hidden = teacher_hidden if anchor_on_teacher else base_hidden
         index = sample_token_indices(len(response), loss_config.gram_tokens, generator)
@@ -171,9 +183,6 @@ def example_losses(
         ]
         losses["gram"] = torch.stack(per_layer).mean()
         total = total + loss_config.gram_weight * losses["gram"]
-    if use_kl:
-        losses["kl"] = token_divergence(student_logits, base_logits, "kl", loss_config.top_k_logits)
-        total = total + loss_config.kl_weight * losses["kl"]
     losses["total"] = total
     return losses
 

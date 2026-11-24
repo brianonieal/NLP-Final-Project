@@ -28,7 +28,7 @@ from gram_sdpo.data import (
     student_messages,
 )
 from gram_sdpo.logging_utils import configure_logging, get_logger
-from gram_sdpo.modeling import load_adapter_weights, load_student
+from gram_sdpo.modeling import load_adapter_weights, load_student, release_gpu_cache
 from gram_sdpo.rollout import sample_responses
 from gram_sdpo.scoring import epistemic_token_count, is_correct
 from gram_sdpo.sdpo import choose_solution, example_losses
@@ -74,6 +74,8 @@ def train_step(
         render_prompt(tokenizer, student_messages(q.question), config.model.enable_thinking)
         for q in questions
     ]
+    if torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
     sampling_started = time.time()
     groups = sample_responses(
         model,
@@ -87,6 +89,7 @@ def train_step(
         batch_size=config.rollout.batch_size,
     )
     sampling_seconds = time.time() - sampling_started
+    release_gpu_cache()
 
     examples: list[tuple[Problem, list[int], str]] = []
     scores: list[float] = []
@@ -121,6 +124,8 @@ def train_step(
         used += 1
         for name, value in losses.items():
             sums[name] = sums.get(name, 0.0) + float(value.detach())
+        del losses
+        release_gpu_cache()
     if used:
         trainable = [p for p in model.parameters() if p.requires_grad]
         torch.nn.utils.clip_grad_norm_(trainable, config.train.grad_clip)
