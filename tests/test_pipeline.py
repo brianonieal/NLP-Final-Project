@@ -335,7 +335,9 @@ def test_timing_summary_scales_one_step_to_the_plan(tiny_model, tiny_tokenizer, 
     hours = project_hours(metrics, plan)
     assert hours["train_hours"] == pytest.approx(100 * 16 * (900 / 2) / 3600)
     assert hours["eval_hours"] == pytest.approx(170 * 16 * (580 / 4) / 3600)
-    assert "projected: one training run" in format_summary("timing_x", metrics, hours)
+    summary = format_summary("timing_x", metrics, hours)
+    assert "projected: one training run" in summary
+    assert f"~{4 * hours['train_hours'] + 9 * hours['eval_hours']:.0f} hours" in summary
 
 
 def test_timing_summary_handles_a_run_with_no_log(tmp_path):

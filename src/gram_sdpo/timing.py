@@ -21,6 +21,10 @@ from gram_sdpo.logging_utils import configure_logging, get_logger
 logger = get_logger(__name__)
 
 OOD_PROBLEMS = {"aime24": 30, "amc23": 40}
+# Experiments 1 and 2 as scripted: SDPO, SDPO + KL, and Gram anchoring at two
+# weights, with six evaluations of the SDPO run and one of each other run.
+PLAN_TRAINING_RUNS = 4
+PLAN_EVALUATIONS = 9
 
 
 def read_timing_run(run_dir: Path) -> dict[str, Any] | None:
@@ -73,6 +77,18 @@ def project_hours(metrics: dict[str, Any], plan: Config) -> dict[str, float]:
     }
 
 
+def plan_hours(hours: dict[str, float]) -> float:
+    """Total GPU hours for Experiments 1 and 2 as scripted.
+
+    Args:
+        hours: Output of ``project_hours``.
+
+    Returns:
+        Hours for four training runs plus nine evaluations.
+    """
+    return PLAN_TRAINING_RUNS * hours["train_hours"] + PLAN_EVALUATIONS * hours["eval_hours"]
+
+
 def format_summary(name: str, metrics: dict[str, Any], hours: dict[str, float]) -> str:
     """Render one timing run as a short text block.
 
@@ -96,6 +112,8 @@ def format_summary(name: str, metrics: dict[str, Any], hours: dict[str, float]) 
         f"   peak GPU memory (GB):           {metrics['peak_gpu_gb']:.1f}",
         f"   projected: one training run     ~{hours['train_hours']:.1f} hours",
         f"   projected: one evaluation       ~{hours['eval_hours']:.1f} hours",
+        f"   projected: whole plan           ~{plan_hours(hours):.0f} hours"
+        f" ({PLAN_TRAINING_RUNS} training runs, {PLAN_EVALUATIONS} evaluations)",
     ]
     return "\n".join(lines)
 

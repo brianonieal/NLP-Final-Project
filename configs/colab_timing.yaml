@@ -1,5 +1,5 @@
 # GenAI disclosure: Claude (Anthropic) generated this file.
-# A one-step timing test for a Colab L4 (22.5 GB). It measures sampling speed,
+# A one-step timing test for a single GPU with 24 GB or more. It measures sampling speed,
 # peak GPU memory, and how many responses hit the token limit before they
 # finish. Both regularizers are on so the step includes all three forward
 # passes. Its accuracy numbers are from 8 questions and mean little.
@@ -12,7 +12,7 @@ data:
 rollout:
   rollouts_per_question: 4
   max_new_tokens: 4096
-  batch_size: 4
+  batch_size: 8
 loss:
   divergence: kl
   top_k_logits: 100
