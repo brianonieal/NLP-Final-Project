@@ -91,6 +91,12 @@ Google Drive, runs a short timing test, and then runs the experiments. A run
 cut off by a dropped session continues with `--resume`, and evaluation skips
 checkpoints that already have a result file.
 
+### Running on a rented GPU
+
+`scripts/run_plan.sh` runs one piece of the plan at a time on any single-GPU
+Linux machine: `timing`, `sdpo`, `sdpo_kl`, `sdpo_gram <weight>`, and `report`.
+Every piece can be rerun after an interruption.
+
 ## How the pieces connect
 
 | Module | Job |

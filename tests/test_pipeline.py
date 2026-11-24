@@ -14,6 +14,7 @@ from gram_sdpo.modeling import base_model, load_adapter_weights, resolve_dtype
 from gram_sdpo.report import collect_rows, to_markdown, write_report
 from gram_sdpo.rollout import Rollout, sample_responses, trim_at_end_token
 from gram_sdpo.sdpo import choose_solution, example_losses, forward_response, gram_distance
+from gram_sdpo.timing import format_summary, project_hours, read_timing_run
 from gram_sdpo.train import latest_checkpoint, train
 
 
@@ -64,6 +65,42 @@ def test_sample_responses_shapes_and_limits(tiny_model, tiny_tokenizer):
         for rollout in group:
             assert 1 <= len(rollout.token_ids) <= 5
             assert isinstance(rollout.text, str)
+
+
+def test_sampling_halves_the_batch_when_the_gpu_runs_out_of_memory(
+    tiny_model, tiny_tokenizer, monkeypatch
+):
+    """An out-of-memory error on a batch is retried with half as many prompts."""
+    real_generate = tiny_model.generate
+    batch_sizes = []
+
+    def generate_with_small_memory(**kwargs):
+        """Fail on any batch of more than two prompts, as a full GPU would."""
+        batch_sizes.append(kwargs["input_ids"].shape[0])
+        if kwargs["input_ids"].shape[0] > 2:
+            raise torch.OutOfMemoryError("simulated")
+        return real_generate(**kwargs)
+
+    monkeypatch.setattr(tiny_model, "generate", generate_with_small_memory)
+    groups = sample_responses(
+        tiny_model, tiny_tokenizer, ["ab"] * 5, n_per_prompt=2, max_new_tokens=4, batch_size=4
+    )
+    assert [len(group) for group in groups] == [2] * 5
+    assert batch_sizes == [4, 2, 2, 1]
+
+
+def test_sampling_gives_up_when_a_single_prompt_does_not_fit(
+    tiny_model, tiny_tokenizer, monkeypatch
+):
+    """With a batch of one there is nothing left to halve, so the error is raised."""
+
+    def always_out_of_memory(**kwargs):
+        """Fail every call."""
+        raise torch.OutOfMemoryError("simulated")
+
+    monkeypatch.setattr(tiny_model, "generate", always_out_of_memory)
+    with pytest.raises(torch.OutOfMemoryError):
+        sample_responses(tiny_model, tiny_tokenizer, ["ab"], 1, max_new_tokens=4, batch_size=1)
 
 
 def test_choose_solution_follows_the_self_teacher_template():
@@ -282,3 +319,27 @@ def test_train_command_line_accepts_several_overrides(monkeypatch, tmp_path):
     assert captured["config"].loss.gram_weight == 0.1
     assert captured["config"].train.steps == 3
     assert captured["config"].train.output_dir == str(tmp_path / "run")
+
+
+def test_timing_summary_scales_one_step_to_the_plan(tiny_model, tiny_tokenizer, tiny_config):
+    """A measured step is scaled by question visits for training and by samples for evaluation."""
+    run_dir = train(tiny_config, always_correct, tiny_model, tiny_tokenizer, toy_problems(8))
+    metrics = read_timing_run(run_dir)
+    assert metrics["questions"] == 2 and metrics["attempts"] == 4
+
+    metrics.update(seconds=900.0, sampling_seconds=580.0)
+    plan = tiny_config
+    plan.train.steps, plan.train.questions_per_step = 100, 16
+    plan.data.heldout_size, plan.eval.max_problems = 200, 100
+    plan.eval.benchmarks, plan.eval.samples_per_problem = ["heldout", "aime24", "amc23"], 16
+    hours = project_hours(metrics, plan)
+    assert hours["train_hours"] == pytest.approx(100 * 16 * (900 / 2) / 3600)
+    assert hours["eval_hours"] == pytest.approx(170 * 16 * (580 / 4) / 3600)
+    summary = format_summary("timing_x", metrics, hours)
+    assert "projected: one training run" in summary
+    assert f"~{4 * hours['train_hours'] + 9 * hours['eval_hours']:.0f} hours" in summary
+
+
+def test_timing_summary_handles_a_run_with_no_log(tmp_path):
+    """A run folder that has not logged a step yet is reported as missing, not as an error."""
+    assert read_timing_run(tmp_path) is None
